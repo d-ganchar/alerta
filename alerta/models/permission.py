@@ -77,6 +77,8 @@ class Permission(object):
 
     @classmethod
     def is_in_scope(cls, scope, scopes):
+        if scope == '*':
+            return True
         if scope in scopes or scope.split(':')[0] in scopes:
             return True
         elif scope.startswith('read'):

@@ -1,5 +1,5 @@
 
-from flask import jsonify, request, current_app
+from flask import jsonify, request, g, current_app
 from flask_cors import cross_origin
 
 from alerta.app import qb
@@ -35,15 +35,61 @@ def update_user(user_id):
         raise ApiError("failed to update user", 500)
 
 
-@api.route('/user/<user_id>/attributes', methods=['OPTIONS', 'PUT'])
+@api.route('/user/me', methods=['OPTIONS', 'PUT'])
 @cross_origin()
 @permission('write:users')
+@jsonp
+def update_me():
+    if not request.json:
+        raise ApiError("nothing to change", 400)
+
+    if 'roles' in request.json:
+        raise ApiError('not allowed to update roles', 400)
+    if 'email_verified' in request.json:
+        raise ApiError('not allowed to set email verified', 400)
+
+    user = User.find_by_email(g.user)
+
+    if not user:
+        raise ApiError("not found", 404)
+
+    if 'email' in request.json and User.find_by_email(request.json['email']):
+        raise ApiError("user with email already exists", 409)
+
+    if user.update(**request.json):
+        return jsonify(status="ok")
+    else:
+        raise ApiError("failed to update user", 500)
+
+
+@api.route('/user/<user_id>/attributes', methods=['OPTIONS', 'PUT'])
+@cross_origin()
+@permission('admin:users')
 @jsonp
 def update_user_attributes(user_id):
     if not request.json.get('attributes', None):
         raise ApiError("must supply 'attributes' as json data", 400)
 
     user = User.find_by_id(user_id)
+
+    if not user:
+        raise ApiError("not found", 404)
+
+    if user.update_attributes(request.json['attributes']):
+        return jsonify(status="ok")
+    else:
+        raise ApiError("failed to update attributes", 500)
+
+
+@api.route('/user/me/attributes', methods=['OPTIONS', 'PUT'])
+@cross_origin()
+@permission('write:users')
+@jsonp
+def update_me_attributes():
+    if not request.json.get('attributes', None):
+        raise ApiError("must supply 'attributes' as json data", 400)
+
+    user = User.find_by_email(g.user)
 
     if not user:
         raise ApiError("not found", 404)
@@ -81,7 +127,7 @@ def search_users():
 
 @api.route('/user/<user_id>', methods=['OPTIONS', 'DELETE'])
 @cross_origin()
-@permission('write:users')
+@permission('admin:users')
 @jsonp
 def delete_user(user_id):
     user = User.find_by_id(user_id)

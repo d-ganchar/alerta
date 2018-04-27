@@ -2,10 +2,10 @@
 import logging
 from uuid import uuid4
 
-from flask import current_app, request, jsonify, render_template
+from flask import current_app, request, g, jsonify, render_template
 from flask_cors import cross_origin
 
-from alerta.auth.utils import is_authorized, create_token, get_customers
+from alerta.auth.utils import is_authorized, create_token, get_customers, permission
 from alerta.exceptions import ApiError
 from alerta.models.user import User
 from alerta.utils.api import absolute_url
@@ -14,11 +14,16 @@ from . import auth
 
 @auth.route('/auth/signup', methods=['OPTIONS', 'POST'])
 @cross_origin(supports_credentials=True)
+@permission('*')
 def signup():
     try:
         user = User.parse(request.json)
     except Exception as e:
         raise ApiError(str(e), 400)
+
+    if 'admin' not in g.scopes and 'admin:users' not in g.scopes:
+        user.roles = ['user']
+        user.email_verified = False
 
     # check allowed domain
     if is_authorized('ALLOWED_EMAIL_DOMAINS', groups=[user.domain]):
